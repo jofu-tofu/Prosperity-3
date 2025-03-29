@@ -9,7 +9,7 @@ datapath = "../Data/"
 def load_data(round, day):
     """
     Load the data for a specific round and day.
-    The data is expected to be in CSV files named 'round{round}_day{day}.csv'.
+    The data is expected to be in CSV files named 'r{round}_d{day}.csv'.
     """
     filename = f"r{round}_d{day}.csv"
     filepath = os.path.join(datapath, filename)
@@ -40,6 +40,21 @@ def spread_plot(raw_data: pd.DataFrame):
     plt.tight_layout()
     plt.show()
 
+def volume_plot(raw_data: pd.DataFrame):
+    data = raw_data.filter(['ask_volume_1', 'ask_volume_2', 'ask_volume_3', 
+                            'bid_volume_1', 'bid_volume_2', 'bid_volume_3'])
+    
+
+    fig, ax = plt.subplots(1, 6, figsize=(12, 5))
+    for i, col in enumerate(data.columns):
+        # Plot each volume column in a separate subplot
+        sns.histplot(data=data[col], ax=ax[i % 6])
+        ax[i % 6].set_title(f"{col}")
+        ax[i % 6].set_xlabel("Volume")
+        ax[i % 6].set_ylabel("Freq")
+    
+    plt.tight_layout()
+    plt.show()
 
 def get_vwap(raw_data: pd.DataFrame) -> float:
     order_vol = raw_data.filter(['ask_volume_1', 'ask_volume_2', 'ask_volume_3', 'bid_volume_1', 'bid_volume_2', 'bid_volume_3']).sum(1)
