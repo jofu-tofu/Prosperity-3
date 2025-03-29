@@ -23,17 +23,23 @@ def load_data(round, day):
     return data
 
 def spread_plot(raw_data: pd.DataFrame):
-    data = raw_data.filter(['ask_price_1','ask_price_2','ask_price_3', 'bid_price_1', 'bid_price_2', 'bid_price_3',
-                            # 'ask_volume_1', 'ask_volume_2', 'ask_volume_3', 'bid_volume_1', 'bid_volume_2', 'bid_volume_3',
-                            ])
-    for col in ['ask_price_1','ask_price_2','ask_price_3', 'bid_price_1', 'bid_price_2', 'bid_price_3']:
+    data = raw_data.filter(['ask_price_1', 'ask_price_2', 'ask_price_3', 
+                            'bid_price_1', 'bid_price_2', 'bid_price_3'])
+
+    for col in data.columns:
         data[col] = data[col] - raw_data['mid_price']
-    
-    sns.lineplot(data=data)
-    plt.title("Spread Plot of Orderbook Normalized by Mid Price")
-    plt.xlabel("Time")
-    plt.ylabel("Price Deviation from Mid Price")
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    sns.lineplot(data=data, ax=ax[0])
+    ax[0].set_title("Spread Plot of Orderbook Normalized by Mid Price")
+    ax[0].set_xlabel("Time")
+    ax[0].set_ylabel("Price Deviation from Mid Price")
+
+    sns.histplot(data=data.to_numpy().flatten(), kde=True, ax=ax[1], bins=30)
+    ax[1].set_title("Distribution of Orderbook Price Deviations from Mid Price")
+    plt.tight_layout()
     plt.show()
+
 
 def get_vwap(raw_data: pd.DataFrame) -> float:
     order_vol = raw_data.filter(['ask_volume_1', 'ask_volume_2', 'ask_volume_3', 'bid_volume_1', 'bid_volume_2', 'bid_volume_3']).sum(1)
