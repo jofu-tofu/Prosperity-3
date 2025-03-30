@@ -117,15 +117,13 @@ class Trade:
             "("
             + self.symbol
             + ", "
-            + self.buyer
-            + " << "
-            + self.seller
-            + ", "
             + str(self.price)
             + ", "
             + str(self.quantity)
             + ", "
-            + str(self.timestamp)
+            + str(self.buyer)
+            + ", "
+            + str(self.seller)
             + ")"
         )
 
@@ -134,15 +132,13 @@ class Trade:
             "("
             + self.symbol
             + ", "
-            + self.buyer
-            + " << "
-            + self.seller
-            + ", "
             + str(self.price)
             + ", "
             + str(self.quantity)
             + ", "
-            + str(self.timestamp)
+            + str(self.buyer)
+            + ", "
+            + str(self.seller)
             + ")"
         )
 
