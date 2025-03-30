@@ -18,12 +18,6 @@ class Listing:
         self.product = product
         self.denomination = denomination
 
-    def __str__(self) -> str:
-        return "(" + self.symbol + ", " + self.product + ", " + self.denomination + ")"
-
-    def __repr__(self) -> str:
-        return "(" + self.symbol + ", " + self.product + ", " + self.denomination + ")"
-
 
 class ConversionObservation:
     def __init__(
@@ -83,30 +77,22 @@ class Order:
 
 class OrderDepth:
     def __init__(
-        self, buy_orders: Dict[int, int] = None, sell_orders: Dict[int, int] = None
+        self,
+        buy_orders: Dict[int, int] = None,
+        sell_orders: Dict[int, int] = None,
+        _mid_price: float = 0,
     ) -> None:
         self.buy_orders: Dict[int, int] = buy_orders if buy_orders is not None else {}
         self.sell_orders: Dict[int, int] = (
             sell_orders if sell_orders is not None else {}
         )
-
-    def __str__(self) -> str:
-        return (
-            "(buy_orders: "
-            + jsonpickle.encode(self.buy_orders)
-            + ", sell_orders: "
-            + jsonpickle.encode(self.sell_orders)
-            + ")"
-        )
-
-    def __repr__(self) -> str:
-        return (
-            "(buy_orders: "
-            + jsonpickle.encode(self.buy_orders)
-            + ", sell_orders: "
-            + jsonpickle.encode(self.sell_orders)
-            + ")"
-        )
+        buy_orders = self.buy_orders if self.buy_orders else {}
+        sell_orders = self.sell_orders if self.sell_orders else {}
+        self._vwap = (
+            sum(p * buy_orders[p] for p in buy_orders)
+            - sum(p * sell_orders[p] for p in sell_orders)
+        ) / (sum(buy_orders.values()) - sum(sell_orders.values()))
+        self._mid_price = _mid_price  # Just for the backtester
 
 
 class Trade:
@@ -184,30 +170,6 @@ class TradingState(object):
 
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True)
-
-    def __str__(self) -> str:
-        return (
-            "("
-            + self.traderData
-            + ", "
-            + str(self.timestamp)
-            + ", "
-            + jsonpickle.encode(self.listings)
-            + ", "
-            + jsonpickle.encode(self.order_depths)
-            + ", "
-            + jsonpickle.encode(self.own_trades)
-            + ", "
-            + jsonpickle.encode(self.market_trades)
-            + ", "
-            + jsonpickle.encode(self.position)
-            + ", "
-            + jsonpickle.encode(self.observations)
-            + ")"
-        )
-
-    def __repr__(self) -> str:
-        return self.__str__()
 
 
 class ProsperityEncoder(JSONEncoder):
