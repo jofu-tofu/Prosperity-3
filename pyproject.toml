@@ -1,0 +1,23 @@
+[project]
+name = "prosperity-3"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jsonpickle>=4.0.5",
+    "matplotlib>=3.10.1",
+    "pandas>=2.2.3",
+    "plotly>=6.0.1",
+    "statistics>=1.0.3.5",
+]
+
+[tool.taskipy.tasks]
+hello = "cd backtester && uv run streamlit run main.py"
+
+[dependency-groups]
+dev = [
+    "taskipy>=1.14.1",
+		"jupyter>=1.1.1",
+    "streamlit>=1.44.0",
+]
