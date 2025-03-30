@@ -17,7 +17,8 @@ class Trader:
                 position: int = state.position.get(product, 0)
                 max_buy = 50 - position
                 max_sell = -50 - position
-        
+
+                print("POSITION", position)
                 total_amount = 0
                 acceptable_price = 0
                 if len(order_depth.sell_orders) != 0:
