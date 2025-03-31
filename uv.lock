@@ -1646,6 +1646,7 @@ dev = [
     { name = "jupyter" },
     { name = "scikit-learn" },
     { name = "streamlit" },
+    { name = "streamlit-monaco" },
     { name = "taskipy" },
     { name = "tqdm" },
 ]
@@ -1664,6 +1665,7 @@ dev = [
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
     { name = "streamlit", specifier = ">=1.44.0" },
+    { name = "streamlit-monaco", specifier = ">=0.1.3" },
     { name = "taskipy", specifier = ">=1.14.1" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
@@ -2320,6 +2322,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b4/86/764e2079c58790f232bb5882853fe8a68302dfdd0e29a5cf6efeb3bbcd17/streamlit-1.44.0.tar.gz", hash = "sha256:da75933bae94595167f43822dea43fcdde0d747433f7d04989266d78967951bb", size = 9422437 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/46/9e/e51e34f504940da00145795b9e8be9c129704708b071f672f3626a37d842/streamlit-1.44.0-py3-none-any.whl", hash = "sha256:98510d03e53622bba8f0e9f2fd4f1191b3b55e5c7e55abbbaa0289cb9e21cdea", size = 9812034 },
+]
+
+[[package]]
+name = "streamlit-monaco"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dc/88/66d784c30a6c5a43a295ad855f3e5a70bab0c392c04a4ade2365aff7a25e/streamlit-monaco-0.1.3.tar.gz", hash = "sha256:cb0ea842f26a89c5987d7e962712603d3594082613387a91403520c79288c519", size = 164437 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/e6/12e26a6e63a1d60c5e0d9a81e9521d10d58d97ad05afcd3b4cba33d8a7cb/streamlit_monaco-0.1.3-py3-none-any.whl", hash = "sha256:3e60cb853b0b15c59b372fbc10c0df7d5f2852d4ef259d8489a98341804b7eb0", size = 175338 },
 ]
 
 [[package]]

@@ -1,17 +1,20 @@
 from datamodel import Order, TradingState
 
-
 class Trader:
-    def run(self, state: TradingState):
-        result = {}
-        current_time = state.timestamp
-        best_ask, best_ask_amount = list(
-            state.order_depths["KELP"].sell_orders.items()
-        )[0]
-        best_bid, best_bid_amount = list(state.order_depths["KELP"].buy_orders.items())[
-            0
-        ]
-        if current_time % 5000 == 0:
-            result["KELP"] = [Order("KELP", best_ask-1, 1), Order("KELP", best_bid+1, -1)]
-        traderData = "SAMPLE"
-        return result, None, traderData
+    '''
+    [TradingState properties]
+    traderData: str,
+    timestamp: Time,
+    listings: Dict[Symbol, Listing],
+    order_depths: Dict[Symbol, OrderDepth],
+    own_trades: Dict[Symbol, List[Trade]],
+    market_trades: Dict[Symbol, List[Trade]],
+    position: Dict[Product, Position],
+    observations: Observation,
+    '''
+    def run(self, state: TradingState) -> tuple[dict[str, Order], int, str]:
+        # your code here
+        orders = {}
+        conversions = 1
+        traderData = "example"
+        return orders, conversions, traderData awd awdawd 

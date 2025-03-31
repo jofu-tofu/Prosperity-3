@@ -88,11 +88,6 @@ class OrderDepth:
         )
         buy_orders = self.buy_orders if self.buy_orders else {}
         sell_orders = self.sell_orders if self.sell_orders else {}
-        self._vwap = (
-            sum(p * buy_orders[p] for p in buy_orders)
-            - sum(p * sell_orders[p] for p in sell_orders)
-        ) / (sum(buy_orders.values()) - sum(sell_orders.values()))
-        self._mid_price = _mid_price  # Just for the backtester
 
 
 class Trade:
