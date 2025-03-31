@@ -65,3 +65,18 @@ def get_vwap(raw_data: pd.DataFrame, min_vol = 0) -> float:
         raw_data[f'bid_dolvol_{i}'] = raw_data[f'bid_price_{i}'].multiply(order_vol[f'bid_volume_{i}'], fill_value= 0)
     dolvol = raw_data.filter(['ask_dolvol_1', 'ask_dolvol_2', 'ask_dolvol_3', 'bid_dolvol_1', 'bid_dolvol_2', 'bid_dolvol_3']).sum(1)
     return dolvol.divide(total_vol)
+
+
+def get_adjusted_vwap(raw_data: pd.DataFrame, min_vol = 0) -> float:
+    ask_vol = raw_data.filter(['ask_volume_1', 'ask_volume_2', 'ask_volume_3'])
+    bid_vol = raw_data.filter(['bid_volume_1', 'bid_volume_2', 'bid_volume_3'])
+    ask_vol = ask_vol.map(lambda x: x if x > min_vol else 0)
+    bid_vol = bid_vol.map(lambda x: x if x > min_vol else 0)
+    tot_ask_vol = ask_vol.sum(1)
+    tot_bid_vol = bid_vol.sum(1)
+    for i in range(1,4):
+        raw_data[f'ask_dolvol_{i}'] = raw_data[f'ask_price_{i}'].multiply(ask_vol[f'ask_volume_{i}'], fill_value= 0)
+        raw_data[f'bid_dolvol_{i}'] = raw_data[f'bid_price_{i}'].multiply(bid_vol[f'bid_volume_{i}'], fill_value= 0)
+    ask_dolvol = raw_data.filter(['ask_dolvol_1', 'ask_dolvol_2', 'ask_dolvol_3']).sum(1)
+    bid_dolvol = raw_data.filter(['bid_dolvol_1', 'bid_dolvol_2', 'bid_dolvol_3']).sum(1)
+    return ask_dolvol.divide(tot_ask_vol).add(bid_dolvol.divide(tot_bid_vol)).divide(2)
