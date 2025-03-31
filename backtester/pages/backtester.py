@@ -41,7 +41,7 @@ with leftcol:
         data_files,
     )
 
-    timerange = st.slider("Time range", 0, 199000, (0, 199000), 100)
+    timerange = st.slider("Time range", 0, 199900, (0, 199900), 100)
 
     checked = st.checkbox(
         "Skip trader results (for viewing downloaded logs)",
