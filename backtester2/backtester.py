@@ -3,8 +3,9 @@ import io
 import json
 from collections import defaultdict
 from contextlib import redirect_stdout
-from typing import Any
+from typing import Any, Literal
 
+import bot_behavior
 import constants
 import util
 from tqdm import tqdm
@@ -15,11 +16,17 @@ from datamodel import Order, OrderDepth, Trade, TradingState
 class Backtester:
     output: str
 
-    def __init__(self, trader_fname: str, data_fname: str):
+    def __init__(
+        self,
+        trader_fname: str,
+        data_fname: str,
+        bot_type: Literal["neq", "nop", "eq"] = "neq",
+    ):
         _, self.raw_market_data, _ = util._parse_data(data_fname)
         self.trade_states = util.get_trade_states(data_fname)
         self.trader = util.get_trader(trader_fname)
         self.products = sorted(list(self.trade_states[0].listings.keys()))
+        self.bot_behavior = bot_behavior.BOT_BEHAVIOR[bot_type]
 
         self.cur_pos = {product: 0 for product in self.products}
         self.pnl_hist = []
@@ -106,7 +113,8 @@ class Backtester:
                 product,
             )
             self.pnl_hist.append(self.pnl[product])
-        self._add_trades(self.own_trades, self.market_trades)
+
+        self._add_trades(self.own_trades, state.market_trades)
 
     def _trade_to_dict(self, trade: Trade) -> dict[str, Any]:
         return {
@@ -122,15 +130,13 @@ class Backtester:
     def _add_trades(
         self, own_trades: dict[str, list[Trade]], market_trades: dict[str, list[Trade]]
     ):
-        products = set(own_trades.keys()) | set(market_trades.keys())
+        products = self.products
         for product in products:
-            self.trades.extend(
-                [self._trade_to_dict(trade) for trade in own_trades.get(product, [])]
-            )
+            for trade in own_trades.get(product, []):
+                self.trades.append(self._trade_to_dict(trade))
         for product in products:
-            self.trades.extend(
-                [self._trade_to_dict(trade) for trade in market_trades.get(product, [])]
-            )
+            for trade in market_trades.get(product, []):
+                self.trades.append(self._trade_to_dict(trade))
 
     def _mark_pnl(self, order_depths: OrderDepth, product):
         order_depth = order_depths[product]
@@ -181,43 +187,17 @@ class Backtester:
                 del order_depth.sell_orders[price]
 
         trades_at_timestamp = trade_history_dict[order.symbol]
-        new_trades_at_timestamp = []
-        for trade in trades_at_timestamp:
-            if trade.price >= order.price:
-                new_trades_at_timestamp.append(trade)
-                continue
 
-            trade_volume = min(abs(order.quantity), abs(trade.quantity))
-            trades.append(
-                Trade(
-                    order.symbol,
-                    order.price,
-                    trade_volume,
-                    "SUBMISSION",
-                    "",
-                    timestamp,
-                )
-            )
+        trades_made_bots, new_market_trades = self.bot_behavior(
+            timestamp, order.symbol, trades_at_timestamp, order
+        )
 
-            order.quantity -= trade_volume
-            self.cur_pos[order.symbol] += trade_volume
-            self.cash[order.symbol] -= order.price * trade_volume
+        for t in trades_made_bots:
+            trades.append(t)
+            self.cur_pos[order.symbol] += t.quantity
+            self.cash[order.symbol] -= order.price * t.quantity
 
-            if trade_volume != abs(trade.quantity):
-                new_quantity = trade.quantity - trade_volume
-                new_trades_at_timestamp.append(
-                    Trade(
-                        order.symbol,
-                        order.price,
-                        new_quantity,
-                        "",
-                        "",
-                        timestamp,
-                    )
-                )
-
-        if len(new_trades_at_timestamp) > 0:
-            trade_history_dict[order.symbol] = new_trades_at_timestamp
+        trade_history_dict[order.symbol] = new_market_trades
 
         return trades, sandboxLog
 
@@ -256,43 +236,17 @@ class Backtester:
                 del order_depth.buy_orders[price]
 
         trades_at_timestamp = trade_history_dict[order.symbol]
-        new_trades_at_timestamp = []
-        for trade in trades_at_timestamp:
-            if trade.price <= order.price:
-                new_trades_at_timestamp.append(trade)
-                continue
 
-            trade_volume = min(abs(order.quantity), abs(trade.quantity))
-            trades.append(
-                Trade(
-                    order.symbol,
-                    order.price,
-                    trade_volume,
-                    "",
-                    "SUBMISSION",
-                    timestamp,
-                )
-            )
+        trades_made_bots, new_market_trades = self.bot_behavior(
+            timestamp, order.symbol, trades_at_timestamp, order
+        )
 
-            order.quantity += trade_volume
-            self.cur_pos[order.symbol] -= trade_volume
-            self.cash[order.symbol] += order.price * trade_volume
+        for t in trades_made_bots:
+            trades.append(t)
+            self.cur_pos[order.symbol] -= t.quantity
+            self.cash[order.symbol] += order.price * t.quantity
 
-            if trade_volume != abs(trade.quantity):
-                new_quantity = trade.quantity - trade_volume
-                new_trades_at_timestamp.append(
-                    Trade(
-                        order.symbol,
-                        order.price,
-                        new_quantity,
-                        "",
-                        "",
-                        timestamp,
-                    )
-                )
-
-        if len(new_trades_at_timestamp) > 0:
-            trade_history_dict[order.symbol] = new_trades_at_timestamp
+        trade_history_dict[order.symbol] = new_market_trades
 
         return trades, sandboxLog
 
