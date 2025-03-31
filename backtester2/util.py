@@ -1,13 +1,9 @@
 import importlib
 import io
 import os
-import pickle
 import re
 
 import pandas as pd
-from tqdm import tqdm
-
-from datamodel import Listing, Observation, OrderDepth, Trade, TradingState
 
 
 def get_trader(trader_fname: str):
@@ -44,89 +40,89 @@ def _parse_data(data_fname):
     return sbox_logs, market_data, trade_history
 
 
-def get_trade_states(data_fname: str) -> list[TradingState]:
-    if os.path.exists(f"cache/{data_fname}"):
-        print("Loading cached trade states...")
-        with open(f"cache/{data_fname}", "rb") as f:
-            return pickle.load(f)
+# def get_trade_states(data_fname: str) -> list[TradingState]:
+#     if os.path.exists(f"cache/{data_fname}"):
+#         print("Loading cached trade states...")
+#         with open(f"cache/{data_fname}", "rb") as f:
+#             return pickle.load(f)
 
-    print("Cached file not found, generating trade states...")
-    _, book_df, trades_df = _parse_data(data_fname)
+#     print("Cached file not found, generating trade states...")
+#     _, book_df, trades_df = _parse_data(data_fname)
 
-    trade_states = []
-    for timestamp, group in tqdm(
-        book_df.groupby("timestamp"), desc="Processing trade states"
-    ):
-        trade_state = _get_trade_state(
-            timestamp, group, trades_df.loc[trades_df.index.intersection([timestamp])]
-        )
-        trade_states.append(trade_state)
+#     trade_states = []
+#     for timestamp, group in tqdm(
+#         book_df.groupby("timestamp"), desc="Processing trade states"
+#     ):
+#         trade_state = _get_trade_state(
+#             timestamp, group, trades_df.loc[trades_df.index.intersection([timestamp])]
+#         )
+#         trade_states.append(trade_state)
 
-    with open(f"cache/{data_fname}", "wb") as f:
-        pickle.dump(trade_states, f)
+#     with open(f"cache/{data_fname}", "wb") as f:
+#         pickle.dump(trade_states, f)
 
-    return trade_states
+#     return trade_states
 
 
-def _get_trade_state(
-    timestamp: int, group: pd.DataFrame, mkt_trades: pd.DataFrame
-) -> TradingState:
-    products = group["product"].unique()
-    listings = {
-        product: Listing(symbol=product, product=product, denomination="USD")
-        for product in products
-    }
+# def _get_trade_state(
+#     timestamp: int, group: pd.DataFrame, mkt_trades: pd.DataFrame
+# ) -> TradingState:
+#     products = group["product"].unique()
+#     listings = {
+#         product: Listing(symbol=product, product=product, denomination="USD")
+#         for product in products
+#     }
 
-    order_depths = {
-        product: OrderDepth(
-            buy_orders={
-                row[f"bid_price_{i}"]: row[f"bid_volume_{i}"]
-                for i in range(1, 4)
-                if not pd.isnull(row[f"bid_price_{i}"])
-                and not pd.isnull(row[f"bid_volume_{i}"])
-            },
-            sell_orders={
-                row[f"ask_price_{i}"]: -row[f"ask_volume_{i}"]
-                for i in range(1, 4)
-                if not pd.isnull(row[f"ask_price_{i}"])
-                and not pd.isnull(row[f"ask_volume_{i}"])
-            },
-            _mid_price=row["mid_price"],
-        )
-        for product, rows in group.groupby("product")
-        for _, row in rows.iterrows()
-    }
+#     order_depths = {
+#         product: OrderDepth(
+#             buy_orders={
+#                 row[f"bid_price_{i}"]: row[f"bid_volume_{i}"]
+#                 for i in range(1, 4)
+#                 if not pd.isnull(row[f"bid_price_{i}"])
+#                 and not pd.isnull(row[f"bid_volume_{i}"])
+#             },
+#             sell_orders={
+#                 row[f"ask_price_{i}"]: -row[f"ask_volume_{i}"]
+#                 for i in range(1, 4)
+#                 if not pd.isnull(row[f"ask_price_{i}"])
+#                 and not pd.isnull(row[f"ask_volume_{i}"])
+#             },
+#             _mid_price=row["mid_price"],
+#         )
+#         for product, rows in group.groupby("product")
+#         for _, row in rows.iterrows()
+#     }
 
-    own_trades = {product: [] for product in products}
+#     own_trades = {product: [] for product in products}
 
-    market_trades = {
-        product: [
-            Trade(
-                symbol=product,
-                price=row.price,
-                quantity=row.quantity,
-                timestamp=timestamp,
-                buyer=row.buyer,
-                seller=row.seller,
-            )
-            for row in mkt_trades[mkt_trades["symbol"] == product].itertuples()
-        ]
-        for product in products
-    }
-    position = {product: 0 for product in products}
+#     market_trades = {
+#         product: [
+#             Trade(
+#                 symbol=product,
+#                 price=row.price,
+#                 quantity=row.quantity,
+#                 timestamp=timestamp,
+#                 buyer=row.buyer,
+#                 seller=row.seller,
+#             )
+#             for row in mkt_trades[mkt_trades["symbol"] == product].itertuples()
+#         ]
+#         for product in products
+#     }
+#     position = {product: 0 for product in products}
 
-    observations = Observation({}, {})
+#     observations = Observation({}, {})
 
-    trader_data = ""
-    state = TradingState(
-        traderData=trader_data,
-        timestamp=timestamp,
-        listings=listings,
-        order_depths=order_depths,
-        own_trades=own_trades,
-        market_trades=market_trades,
-        position=position,
-        observations=observations,
-    )
+#     trader_data = ""
+#     state = TradingState(
+#         traderData=trader_data,
+#         timestamp=timestamp,
+#         listings=listings,
+#         order_depths=order_depths,
+#         own_trades=own_trades,
+#         market_trades=market_trades,
+#         position=position,
+#         observations=observations,
+#     )
 
-    return state
+#     return state
