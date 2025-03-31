@@ -2,99 +2,70 @@ import io
 import os
 
 import backtester2
-import constants
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 import util
-from streamlit_monaco import st_monaco
 
 st.set_page_config(layout="wide")
 
-leftcol, rightcol = st.columns(2, gap="small")
+leftcol, rightcol = st.columns([2, 5], gap="small")
 bt = None
 
 with leftcol:
-    col1, newbtncol, savebtncol = st.columns(
-        [4, 1, 1], vertical_alignment="bottom", gap="small"
+    st.header("Backtester")
+    st.info(
+        """
+        Place traders in traders/ folder and data (logs) in data/ folder. 
+        To run the trader just save the file locally and hit run, no need
+        to refresh the page. Check the "skip trader results" box to view
+        logs directy (without running the trader). Verify the trader code
+        in the dropdown after running if unsure about results."""
     )
 
     trader_files = [
         f for f in os.listdir("traders/") if os.path.isfile(os.path.join("traders/", f))
     ]
 
-    selected_trader_fname = col1.selectbox(
+    selected_trader_fname = st.selectbox(
         "Select a trader",
         trader_files,
     )
-
-    with st.expander("Rename"):
-        col1, col2 = st.columns([4, 1], gap="small", vertical_alignment="bottom")
-
-        file_name_input = col1.text_input("Set file name", value=selected_trader_fname)
-        if col2.button(
-            "Rename",
-            use_container_width=True,
-            disabled=selected_trader_fname == file_name_input,
-        ):
-            os.rename(
-                os.path.join("traders/", selected_trader_fname),
-                os.path.join("traders/", file_name_input),
-            )
-
-    with open(
-        os.path.join("traders/", selected_trader_fname),
-        "r",
-    ) as f:
-        code_read = f.read()
-
-    code = st_monaco(
-        value=code_read,
-        height="500px",
-        language="python",
-        lineNumbers=True,
-        minimap=False,
-        theme="vs-dark",
-    )
-
-    col1, runbtncol = st.columns([3, 1], gap="small", vertical_alignment="bottom")
 
     data_files = [
         f for f in os.listdir("data/") if os.path.isfile(os.path.join("data/", f))
     ]
 
-    data_source_fname = col1.selectbox(
+    data_source_fname = st.selectbox(
         "Select a data source",
         data_files,
     )
-
-    if newbtncol.button("New", use_container_width=True):
-        suffix = 0
-        while os.path.exists(f"traders/trader_{suffix}.py"):
-            suffix += 1
-        new_file_name = f"trader_{suffix}.py"
-        with open(f"traders/{new_file_name}", "w") as f:
-            f.write(constants.BLANK_TRADER)
-        st.success(f"Created trader file {new_file_name} successfully!")
 
     checked = st.checkbox(
         "Skip trader results (for viewing downloaded logs)",
         value=False,
     )
 
-    if runbtncol.button("Run", use_container_width=True):
-        st.success(f"Running {selected_trader_fname} on {data_source_fname}...")
-        if code is not None:
-            bt = backtester2.Backtester(
-                trader_fname=io.StringIO(code),
-                data_fname=data_source_fname,
-                skip=checked,
-            )
+    if st.button("Run", use_container_width=True):
+        st.success(f"Running {selected_trader_fname} on {data_source_fname}.")
+        with open(os.path.join("traders/", selected_trader_fname), "r") as trader_file:
+            contents = trader_file.read()
+            with st.expander(
+                "Trader code",
+                expanded=False,
+            ):
+                st.code(contents, language="python")
 
-            if checked:
-                with open(os.path.join("data/", data_source_fname), "r") as data_file:
-                    data_contents = data_file.read()
-                    bt.output = data_contents
+        bt = backtester2.Backtester(
+            trader_fname=selected_trader_fname,
+            data_fname=data_source_fname,
+            skip=checked,
+        )
+
+        if checked:
+            with open(os.path.join("data/", data_source_fname), "r") as data_file:
+                data_contents = data_file.read()
+                bt.output = data_contents
 
 with rightcol:
     if bt is None:
@@ -181,11 +152,3 @@ with rightcol:
         )
         fig.update_traces(hovertemplate="<b>VWAP: %{customdata[0]:.2f}</b>")
         st.plotly_chart(fig, use_container_width=True)
-
-
-if savebtncol.button("Save", use_container_width=True):
-    with open(os.path.join("traders/", selected_trader_fname), "w") as f:
-        f.write(code)
-    st.success(f"Saved {selected_trader_fname} successfully!")
-    code_read = code
-    st.rerun()
