@@ -4,10 +4,9 @@ import os
 import backtester2
 import constants
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.express as px
 import streamlit as st
 import util
-from plotly.subplots import make_subplots
 from streamlit_monaco import st_monaco
 
 st.set_page_config(layout="wide")
@@ -78,23 +77,31 @@ with leftcol:
             f.write(constants.BLANK_TRADER)
         st.success(f"Created trader file {new_file_name} successfully!")
 
-    if savebtncol.button("Save", use_container_width=True):
-        with open(os.path.join("traders/", selected_trader_fname), "w") as f:
-            f.write(code)
-        st.success(f"Saved {selected_trader_fname} successfully!")
+    checked = st.checkbox(
+        "Skip trader results (for viewing downloaded logs)",
+        value=False,
+    )
 
     if runbtncol.button("Run", use_container_width=True):
         st.success(f"Running {selected_trader_fname} on {data_source_fname}...")
-        bt = backtester2.Backtester(
-            trader_fname=selected_trader_fname,
-            data_fname=data_source_fname,
-        )
+        if code is not None:
+            bt = backtester2.Backtester(
+                trader_fname=io.StringIO(code),
+                data_fname=data_source_fname,
+                skip=checked,
+            )
+
+            if checked:
+                with open(os.path.join("data/", data_source_fname), "r") as data_file:
+                    data_contents = data_file.read()
+                    bt.output = data_contents
 
 with rightcol:
     if bt is None:
         st.warning("No backtest results to display.")
 
     if bt is not None:
+        margin = dict(l=0, r=0, t=25, b=0)
         sb, mkt, trades = util._parse_data(io.StringIO(bt.output))
         trades.loc[trades["seller"] == "SUBMISSION", "quantity"] *= -1
         trades.loc[
@@ -105,27 +112,20 @@ with rightcol:
 
         trades["cumulative"] = trades.groupby("symbol")["quantity"].cumsum()
 
-        fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
+        import plotly.express as px
 
-        for symbol in trades["symbol"].unique():
-            data = trades[trades["symbol"] == symbol]
-            fig.add_trace(
-                go.Scatter(
-                    x=data.index,
-                    y=data["cumulative"],
-                    name=symbol,
-                    mode="lines",
-                ),
-                row=1,
-                col=1,
-            )
+        fig = px.line(
+            trades,
+            y="cumulative",
+            color="symbol",
+            title="Positions",
+        )
+        fig.update_layout(
+            hovermode="x", margin=margin, xaxis_title=None, xaxis_ticks="", height=250
+        )
+        fig.update_traces(hovertemplate="<b>%{y}</b>")
 
-        # fig1 = go.Scatter(
-        #     trades, y="cumulative", color="symbol", title="Positions", mode="lines"
-        # )
-        # fig1.update_layout(hovermode="x")
-        # fig1.update_traces(hovertemplate="<b>%{y}</b>")
-        # fig.add_trace(fig1, row=1, col=1)
+        st.plotly_chart(fig, use_container_width=True)
 
         # PNL
         mkt["key"] = mkt["product"]
@@ -140,25 +140,13 @@ with rightcol:
 
         concat = pd.concat([mkt2, total_pnl], axis=0)
 
-        for k in concat["key"].unique():
-            data = concat[concat["key"] == k]
-            fig.add_trace(
-                go.Scatter(
-                    x=data.index,
-                    y=data["value"],
-                    name=k,
-                    mode="lines",
-                ),
-                row=2,
-                col=1,
-            )
+        fig = px.line(concat, y="value", color="key", title="PNL")
+        fig.update_layout(
+            hovermode="x", margin=margin, xaxis_title=None, xaxis_ticks="", height=250
+        )
+        fig.update_traces(hovertemplate="<b>%{y:.2f}</b>")
 
-        # fig2.update_layout(
-        #     hovermode="x",
-        # )
-        # fig2.update_traces(hovertemplate="<b>%{y:.2f}</b>")
-
-        # fig.add_trace(fig2, row=2, col=1)
+        st.plotly_chart(fig, use_container_width=True)
 
         # Asset price
 
@@ -181,31 +169,23 @@ with rightcol:
             lambda x: (x - x.min()) / (x.max() - x.min())
         )
 
-        for p in mkt["product"].unique():
-            data = mkt[mkt["product"] == p]
-            fig.add_trace(
-                go.Scatter(
-                    x=data.index,
-                    y=data["price_norm"],
-                    name=p,
-                    mode="lines",
-                ),
-                row=3,
-                col=1,
-            )
-
-        # fig3 = px.line(
-        #     mkt,
-        #     y="price_norm",
-        #     color="product",
-        #     title="Asset Price",
-        #     custom_data=["vwap", "mid_price"],
-        # )
-        # fig3.update_layout(
-        #     hovermode="x",
-        # )
-        # fig3.update_traces(hovertemplate="<b>VWAP: %{custom_data[0]:.2f}</b>")
-
-        # fig.add_trace(fig3, row=3, col=1)
-
+        fig = px.line(
+            mkt,
+            y="price_norm",
+            color="product",
+            title="Asset Price",
+            custom_data=["vwap", "mid_price"],
+        )
+        fig.update_layout(
+            hovermode="x", margin=margin, xaxis_title=None, xaxis_ticks="", height=250
+        )
+        fig.update_traces(hovertemplate="<b>VWAP: %{customdata[0]:.2f}</b>")
         st.plotly_chart(fig, use_container_width=True)
+
+
+if savebtncol.button("Save", use_container_width=True):
+    with open(os.path.join("traders/", selected_trader_fname), "w") as f:
+        f.write(code)
+    st.success(f"Saved {selected_trader_fname} successfully!")
+    code_read = code
+    st.rerun()
