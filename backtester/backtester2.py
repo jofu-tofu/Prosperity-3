@@ -33,14 +33,15 @@ class Backtester:
 
         _, market_data, trade_history = util._parse_data(data_fname)
         t0, t1 = timerange
-        market_data = market_data[(market_data.index >= t0) & (market_data.index <= t1)]
+        self.market_data = market_data[
+            (market_data.index >= t0) & (market_data.index <= t1)
+        ]
         trade_history = trade_history[
             (trade_history.index >= t0) & (trade_history.index <= t1)
         ]
 
         self.trader = util.get_trader(trader_fname)
         self.trade_history = trade_history.sort_values(by=["timestamp", "symbol"])
-        self.market_data = market_data
 
         cache_file = f"cache/{data_fname}"
         if os.path.exists(cache_file):
@@ -49,7 +50,7 @@ class Backtester:
         else:
             print("Cached file not found, generating order depths...")
             self.cache_order_depths = {}
-            for timestamp, group in self.market_data.groupby("timestamp"):
+            for timestamp, group in market_data.groupby("timestamp"):
                 self.cache_order_depths[timestamp] = self._construct_order_depths(group)
             with open(cache_file, "wb") as f:
                 pickle.dump(self.cache_order_depths, f)
