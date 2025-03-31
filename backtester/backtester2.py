@@ -23,9 +23,9 @@ class Backtester:
         self,
         trader_fname: str,
         data_fname: str,
-        bot_type: Literal["neq", "nop", "eq"] = "neq",
         skip: bool = False,
-        timerange: tuple[int, int] = (0, 199000),
+        timerange: tuple[int, int] = (0, 199900),
+        bot_behavior: Literal["none", "eq", "lt", "lte"] = "lt",
     ):
         if skip:
             print("Skipping backtester")
@@ -39,9 +39,17 @@ class Backtester:
         trade_history = trade_history[
             (trade_history.index >= t0) & (trade_history.index <= t1)
         ]
+        self.bot_behavior = bot_behavior
 
         self.trader = util.get_trader(trader_fname)
         self.trade_history = trade_history.sort_values(by=["timestamp", "symbol"])
+
+        self.trade_history = self.trade_history[
+            (self.trade_history["buyer"] == "SUBMISSION")
+            | (self.trade_history["seller"] == "SUBMISSION")
+        ]
+        self.trade_history["buyer"] = ""
+        self.trade_history["seller"] = ""
 
         cache_file = f"cache/{data_fname}"
         if os.path.exists(cache_file):
@@ -54,8 +62,6 @@ class Backtester:
                 self.cache_order_depths[timestamp] = self._construct_order_depths(group)
             with open(cache_file, "wb") as f:
                 pickle.dump(self.cache_order_depths, f)
-
-        self.bot_type = bot_type
 
         self.fair_marks = constants.FAIR_MKT_VALUE
         self.position_limit = constants.POSITION_LIMITS
@@ -303,9 +309,11 @@ class Backtester:
 
         trades_at_timestamp = trade_history_dict.get(timestamp, [])
         new_trades_at_timestamp = []
+        bot_mdt = constants.BOT_BEHAVIOR_MATCH[self.bot_behavior]
+
         for trade in trades_at_timestamp:
             if trade.symbol == order.symbol:
-                if trade.price <= order.price:
+                if bot_mdt(trade.price, order.price):
                     trade_volume = min(abs(order.quantity), abs(trade.quantity))
                     trades.append(
                         Trade(
@@ -320,7 +328,7 @@ class Backtester:
                     order.quantity -= trade_volume
                     position[order.symbol] += trade_volume
                     self.cash[order.symbol] -= order.price * trade_volume
-                    if trade_volume == abs(trade.quantity):
+                    if trade_volume >= abs(trade.quantity):
                         continue
                     else:
                         new_quantity = trade.quantity - trade_volume
@@ -380,9 +388,11 @@ class Backtester:
 
         trades_at_timestamp = trade_history_dict.get(timestamp, [])
         new_trades_at_timestamp = []
+        bot_mdt = constants.BOT_BEHAVIOR_MATCH[self.bot_behavior]
+
         for trade in trades_at_timestamp:
             if trade.symbol == order.symbol:
-                if trade.price >= order.price:
+                if bot_mdt(order.price, trade.price):
                     trade_volume = min(abs(order.quantity), abs(trade.quantity))
                     trades.append(
                         Trade(
@@ -397,7 +407,7 @@ class Backtester:
                     order.quantity += trade_volume
                     position[order.symbol] -= trade_volume
                     self.cash[order.symbol] += order.price * trade_volume
-                    if trade_volume == abs(trade.quantity):
+                    if trade_volume >= abs(trade.quantity):
                         continue
                     else:
                         new_quantity = trade.quantity - trade_volume

@@ -36,3 +36,10 @@ class Trader:
         conversions = 1
         traderData = "example"
         return orders, conversions, traderData"""
+
+BOT_BEHAVIOR_MATCH = {
+    "none": lambda x, y: False,
+    "eq": lambda x, y: x == y,
+    "lt": lambda x, y: x < y,
+    "lte": lambda x, y: x <= y,
+}

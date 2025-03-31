@@ -32,13 +32,20 @@ with leftcol:
         trader_files,
     )
 
+    c1, c2 = st.columns(2, gap="small")
+
     data_files = [
         f for f in os.listdir("data/") if os.path.isfile(os.path.join("data/", f))
     ]
 
-    data_source_fname = st.selectbox(
+    data_source_fname = c1.selectbox(
         "Select a data source",
         data_files,
+    )
+
+    bot_behavior = c2.selectbox(
+        "Select bot behavior",
+        ["none", "eq", "lt", "lte"],
     )
 
     timerange = st.slider("Time range", 0, 199900, (0, 199900), 100)
@@ -63,7 +70,14 @@ with leftcol:
             data_fname=data_source_fname,
             timerange=timerange,
             skip=checked,
+            bot_behavior=bot_behavior,
         )
+
+        output_file_path = os.path.join("output", f"{selected_trader_fname}_output.txt")
+        os.makedirs("output", exist_ok=True)
+        with open(output_file_path, "w") as output_file:
+            output_file.write(bt.output)
+        st.success(f"Output written to {output_file_path}.")
 
         if checked:
             with open(os.path.join("data/", data_source_fname), "r") as data_file:
