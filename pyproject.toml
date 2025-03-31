@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [tool.taskipy.tasks]
-hello = "cd backtester && uv run streamlit run main.py"
+app = "cd backtester && uv run streamlit run app.py"
 
 [dependency-groups]
 dev = [
@@ -22,4 +22,5 @@ dev = [
     "streamlit>=1.44.0",
     "scikit-learn>=1.6.1",
     "tqdm>=4.67.1",
+    "streamlit-monaco>=0.1.3",
 ]
