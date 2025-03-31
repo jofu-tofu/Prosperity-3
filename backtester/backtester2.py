@@ -24,7 +24,12 @@ class Backtester:
         trader_fname: str,
         data_fname: str,
         bot_type: Literal["neq", "nop", "eq"] = "neq",
+        skip: bool = False 
     ):
+        if skip:
+            print("Skipping backtester")
+            return
+        
         _, market_data, trade_history = util._parse_data(data_fname)
         self.trader = util.get_trader(trader_fname)
         self.trade_history = trade_history.sort_values(by=["timestamp", "symbol"])

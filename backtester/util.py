@@ -6,12 +6,20 @@ import re
 import pandas as pd
 
 
-def get_trader(trader_fname: str):
-    trader_path = os.path.join("traders", trader_fname)
-    if not os.path.exists(trader_path):
-        raise FileNotFoundError(f"Trader file {trader_path} not found.")
+def get_trader(trader_fname):
+    if isinstance(trader_fname, io.StringIO):
+        trader_fname.seek(0)
+        content = trader_fname.read()
+        cache_path = os.path.join("cache", "tmp_trader.py")
+        with open(cache_path, "w") as tmp_file:
+            tmp_file.write(content)
+        trader_path = cache_path
+    else:
+        trader_path = os.path.join("traders", trader_fname)
+        if not os.path.exists(trader_path):
+            raise FileNotFoundError(f"Trader file {trader_path} not found.")
 
-    spec = importlib.util.spec_from_file_location(trader_fname, trader_path)
+    spec = importlib.util.spec_from_file_location("trader", trader_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.Trader()
