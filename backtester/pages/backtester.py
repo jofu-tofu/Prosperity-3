@@ -73,11 +73,11 @@ with leftcol:
             bot_behavior=bot_behavior,
         )
 
-        output_file_path = os.path.join("output", f"{selected_trader_fname}_output.txt")
-        os.makedirs("output", exist_ok=True)
-        with open(output_file_path, "w") as output_file:
-            output_file.write(bt.output)
-        st.success(f"Output written to {output_file_path}.")
+        # output_file_path = os.path.join("output", f"{selected_trader_fname}_output.txt")
+        # os.makedirs("output", exist_ok=True)
+        # with open(output_file_path, "w") as output_file:
+        #     output_file.write(bt.output)
+        # st.success(f"Output written to {output_file_path}.")
 
         if checked:
             with open(os.path.join("data/", data_source_fname), "r") as data_file:

@@ -44,10 +44,10 @@ class Backtester:
         self.trader = util.get_trader(trader_fname)
         self.trade_history = trade_history.sort_values(by=["timestamp", "symbol"])
 
-        self.trade_history = self.trade_history[
-            (self.trade_history["buyer"] == "SUBMISSION")
-            | (self.trade_history["seller"] == "SUBMISSION")
-        ]
+        # self.trade_history = self.trade_history[
+        #     (self.trade_history["buyer"] == "SUBMISSION")
+        #     | (self.trade_history["seller"] == "SUBMISSION")
+        # ]
         self.trade_history["buyer"] = ""
         self.trade_history["seller"] = ""
 
@@ -286,7 +286,7 @@ class Backtester:
 
         for price, volume in list(order_depth.sell_orders.items()):
             if price > order.price or order.quantity == 0:
-                break
+                continue
 
             trade_volume = min(abs(order.quantity), abs(volume))
             if abs(trade_volume + position[order.symbol]) <= int(
@@ -365,7 +365,7 @@ class Backtester:
 
         for price, volume in sorted(order_depth.buy_orders.items(), reverse=True):
             if price < order.price or order.quantity == 0:
-                break
+                continue
 
             trade_volume = min(abs(order.quantity), abs(volume))
             if abs(position[order.symbol] - trade_volume) <= int(
