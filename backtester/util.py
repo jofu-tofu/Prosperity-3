@@ -136,6 +136,7 @@ def get_trader(trader: str):
 
 @dataclass
 class TestState:
+    market_trades: dict[str, list[Trade]]
     own_trades: dict[str, list[Trade]]
     position: dict[str, int]
     cash_position: dict[str, int]
@@ -164,6 +165,7 @@ class Backtest:
         self.bt_state = TestState(
             trader_data="",
             own_trades={product: [] for product in self.products},
+            market_trades={product: [] for product in self.products},
             position={product: 0 for product in self.products},
             cash_position={product: 0 for product in self.products},
         )
@@ -182,14 +184,29 @@ class Backtest:
 
     def run(self):
         for state in tqdm(self.trade_states, desc="Running backtest"):
+            next_mkt_trades = state.market_trades
+            state.market_trades = self.bt_state.market_trades  # replace with prev
             state.position = self.bt_state.position
             state.traderData = self.bt_state.trader_data
             state.own_trades = self.bt_state.own_trades
 
-            own_trades, trader_data = self.step(state)
+            own_trades, trader_data, remaining_orders = self.step(state)
+
+            self.fill_orders(remaining_orders, next_mkt_trades, own_trades)
 
             self.bt_state.own_trades = own_trades
             self.bt_state.trader_data = trader_data
+
+    def fill_orders(
+        self,
+        remaining_orders: dict[str, tuple[list[Order], list[Order]]],
+        next_mkt_trades: dict[str, list[Trade]],
+        own_trades: list,
+    ):
+        for product in self.products:
+            print(remaining_orders[product])
+
+        return
 
     def step(self, state: TradingState):
         captured_output = io.StringIO()
@@ -197,6 +214,7 @@ class Backtest:
             result, conversions, trader_data = self.trader.run(state)
         own_trades = []
 
+        remaining_orders = {}
         for product in self.products:
             orders: list[Order] = result.get(product, [])
 
@@ -285,7 +303,7 @@ class Backtest:
                 self.bt_state.position[product] -= qty
                 self.bt_state.cash_position[product] += qty * buy_price
 
-            # TODO: some mystery bot order matching??
+            remaining_orders[product] = (buy_orders, sell_orders)
 
         self.trade_history.extend(own_trades)
 
@@ -305,4 +323,4 @@ class Backtest:
 
         self.history.loc[state.timestamp, "logs"] = captured_output.getvalue()
 
-        return own_trades, trader_data
+        return own_trades, trader_data, remaining_orders
