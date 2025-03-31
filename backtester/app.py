@@ -16,7 +16,7 @@ with leftcol:
     st.header("Backtester")
     st.info(
         """
-        Place traders in traders/ folder and data (logs) in data/ folder. 
+        Place traders in backtester/traders/ folder and data (logs) in backtester/data/ folder. 
         To run the trader just save the file locally and hit run, no need
         to refresh the page. Check the "skip trader results" box to view
         logs directy (without running the trader). Verify the trader code
