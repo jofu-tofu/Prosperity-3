@@ -24,13 +24,20 @@ class Backtester:
         trader_fname: str,
         data_fname: str,
         bot_type: Literal["neq", "nop", "eq"] = "neq",
-        skip: bool = False 
+        skip: bool = False,
+        timerange: tuple[int, int] = (0, 199000),
     ):
         if skip:
             print("Skipping backtester")
             return
-        
+
         _, market_data, trade_history = util._parse_data(data_fname)
+        t0, t1 = timerange
+        market_data = market_data[(market_data.index >= t0) & (market_data.index <= t1)]
+        trade_history = trade_history[
+            (trade_history.index >= t0) & (trade_history.index <= t1)
+        ]
+
         self.trader = util.get_trader(trader_fname)
         self.trade_history = trade_history.sort_values(by=["timestamp", "symbol"])
         self.market_data = market_data

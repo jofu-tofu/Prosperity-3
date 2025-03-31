@@ -41,6 +41,8 @@ with leftcol:
         data_files,
     )
 
+    timerange = st.slider("Time range", 0, 199000, (0, 199000), 100)
+
     checked = st.checkbox(
         "Skip trader results (for viewing downloaded logs)",
         value=False,
@@ -59,6 +61,7 @@ with leftcol:
         bt = backtester2.Backtester(
             trader_fname=selected_trader_fname,
             data_fname=data_source_fname,
+            timerange=timerange,
             skip=checked,
         )
 
