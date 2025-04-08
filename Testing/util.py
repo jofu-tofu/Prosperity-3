@@ -110,3 +110,15 @@ def get_adjusted_vwap(raw_data: pd.DataFrame, min_vol = 0) -> float:
     ask_dolvol = raw_data.filter(['ask_dolvol_1', 'ask_dolvol_2', 'ask_dolvol_3']).sum(1)
     bid_dolvol = raw_data.filter(['bid_dolvol_1', 'bid_dolvol_2', 'bid_dolvol_3']).sum(1)
     return ask_dolvol.divide(tot_ask_vol).add(bid_dolvol.divide(tot_bid_vol)).divide(2)
+
+def relative_entropy_binned(data: pd.Series, num_bins: int) -> float:
+    # Compute histogram: counts and bin edges
+    counts, bin_edges = np.histogram(data, bins=num_bins)
+    # Normalize counts to create a probability distribution (p)
+    total = counts.sum()
+    if total == 0:
+        raise ValueError("The data series is empty or contains no values within the bins.")
+    p = counts / total
+    entropy = -np.sum(p * np.log(p + 1e-10))  # Adding a small value to avoid log(0)
+    
+    return entropy/np.log(num_bins)
