@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 import numpy as np
 from datamodel import Listing, Observation, Order, OrderDepth, ProsperityEncoder, Symbol, Trade, TradingState
 import jsonpickle
@@ -346,10 +346,10 @@ class Trader:
         orders = []
         if position_change > 0:
             # Buy the spread (buy PB2+DJ, sell PB1)
-            orders.extend(self.buy_spread(state, position_change, price_adjustment))
+            orders.extend(self.buy_spread(state.order_depths, position_change, price_adjustment))
         else:
             # Sell the spread (sell PB2+DJ, buy PB1)
-            orders.extend(self.sell_spread(state, abs(position_change), price_adjustment))
+            orders.extend(self.sell_spread(state.order_depths, abs(position_change), price_adjustment))
 
         # Update current position
         self.current_position = target_position
@@ -362,15 +362,104 @@ class Trader:
             if order.symbol not in result:
                 result[order.symbol] = []
             result[order.symbol].append(order)
+        trader_data = jsonpickle.encode(trader_data)
         logger.flush(state, result, conversions, trader_data)
-        return result, 0, jsonpickle.encode(trader_data)
+        return result, 0, trader_data
 
-    def buy_spread(self, state: TradingState, quantity: int, price_adjustment: int) -> List[Order]:
+    def _calculate_adjusted_price(self, price: float, is_buy: bool, price_adjustment: int) -> float:
+        """
+        Calculate the adjusted price based on whether we're buying or selling
+
+        Parameters:
+            price: The base price (best bid or best ask)
+            is_buy: True if buying, False if selling
+            price_adjustment: The price adjustment to apply
+
+        Returns:
+            The adjusted price
+        """
+        # For buying, we add the adjustment to the ask price
+        # For selling, we subtract the adjustment from the bid price
+        if is_buy:
+            adjusted_price = price + price_adjustment
+            if price % 1 == 0.5:
+                adjusted_price = price + price_adjustment + 0.5
+        else:
+            adjusted_price = price - price_adjustment
+            if price % 1 == 0.5:
+                adjusted_price = price - price_adjustment - 0.5
+
+        return adjusted_price
+
+    def _get_available_volume(self, order_depth: OrderDepth, is_buy: bool, price_adjustment: int) -> tuple[float, float]:
+        """
+        Calculate the available volume at the adjusted price level
+
+        Parameters:
+            order_depth: The order depth for a product
+            is_buy: True if buying, False if selling
+            price_adjustment: The price adjustment to apply
+
+        Returns:
+            Tuple of (adjusted_price, available_volume)
+        """
+        if is_buy and len(order_depth.sell_orders) > 0:
+            # Buying - check sell orders
+            best_price = min(order_depth.sell_orders.keys())
+            adjusted_price = self._calculate_adjusted_price(best_price, True, price_adjustment)
+
+            # Count liquidity at or below our adjusted price
+            available_volume = 0
+            for price, volume in order_depth.sell_orders.items():
+                if price <= adjusted_price:
+                    available_volume += abs(volume)
+
+            return adjusted_price, available_volume
+
+        elif not is_buy and len(order_depth.buy_orders) > 0:
+            # Selling - check buy orders
+            best_price = max(order_depth.buy_orders.keys())
+            adjusted_price = self._calculate_adjusted_price(best_price, False, price_adjustment)
+
+            # Count liquidity at or above our adjusted price
+            available_volume = 0
+            for price, volume in order_depth.buy_orders.items():
+                if price >= adjusted_price:
+                    available_volume += abs(volume)
+
+            return adjusted_price, available_volume
+
+        return 0, 0
+
+    def _create_spread_order(self, product: str, order_depth: OrderDepth, quantity: int, is_buy: bool, price_adjustment: int) -> Optional[Order]:
+        """
+        Create an order for a product in the spread
+
+        Parameters:
+            product: The product to trade
+            order_depth: The order depth for the product
+            quantity: The quantity to trade (positive for buy, negative for sell)
+            is_buy: True if buying, False if selling
+            price_adjustment: The price adjustment to apply
+
+        Returns:
+            The created order, or None if no order can be created
+        """
+        if quantity == 0:
+            return None
+
+        adjusted_price, _ = self._get_available_volume(order_depth, is_buy, price_adjustment)
+        if adjusted_price == 0:
+            return None
+
+        return Order(product, adjusted_price, quantity)
+
+    def buy_spread(self, order_depths: Dict[str, OrderDepth], quantity: int, price_adjustment: int) -> List[Order]:
         """
         Buy the spread: buy PB2+DJ, sell PB1
 
         Parameters:
-            state: Current trading state
+            order_depths: Dictionary of order depths for each product
             quantity: Requested quantity to trade
             price_adjustment: Price adjustment for orders
 
@@ -390,55 +479,19 @@ class Trader:
         max_spreads_dj = 0
 
         # For PB1 (selling), check buy orders at or above our adjusted price
-        if 'PICNIC_BASKET1' in state.order_depths:
-            order_depth = state.order_depths['PICNIC_BASKET1']
-            if len(order_depth.buy_orders) > 0:
-                best_bid = max(order_depth.buy_orders.keys())
-                adjusted_price = best_bid - price_adjustment
-                if best_bid % 1 == 0.5:
-                    adjusted_price = best_bid - price_adjustment - 0.5
-
-                # Count liquidity at or above our adjusted price
-                available_volume = 0
-                for price, volume in order_depth.buy_orders.items():
-                    if price >= adjusted_price:
-                        available_volume += abs(volume)
-
-                max_spreads_pb1 = available_volume // abs(pb1_multiplier) if pb1_multiplier != 0 else float('inf')
+        if 'PICNIC_BASKET1' in order_depths:
+            _, available_volume = self._get_available_volume(order_depths['PICNIC_BASKET1'], False, price_adjustment)
+            max_spreads_pb1 = available_volume // abs(pb1_multiplier) if pb1_multiplier != 0 else float('inf')
 
         # For PB2 (buying), check sell orders at or below our adjusted price
-        if 'PICNIC_BASKET2' in state.order_depths:
-            order_depth = state.order_depths['PICNIC_BASKET2']
-            if len(order_depth.sell_orders) > 0:
-                best_ask = min(order_depth.sell_orders.keys())
-                adjusted_price = best_ask + price_adjustment
-                if best_ask % 1 == 0.5:
-                    adjusted_price = best_ask + price_adjustment + 0.5
-
-                # Count liquidity at or below our adjusted price
-                available_volume = 0
-                for price, volume in order_depth.sell_orders.items():
-                    if price <= adjusted_price:
-                        available_volume += abs(volume)
-
-                max_spreads_pb2 = available_volume // abs(pb2_multiplier) if pb2_multiplier != 0 else float('inf')
+        if 'PICNIC_BASKET2' in order_depths:
+            _, available_volume = self._get_available_volume(order_depths['PICNIC_BASKET2'], True, price_adjustment)
+            max_spreads_pb2 = available_volume // abs(pb2_multiplier) if pb2_multiplier != 0 else float('inf')
 
         # For DJEMBES (buying), check sell orders at or below our adjusted price
-        if 'DJEMBES' in state.order_depths:
-            order_depth = state.order_depths['DJEMBES']
-            if len(order_depth.sell_orders) > 0:
-                best_ask = min(order_depth.sell_orders.keys())
-                adjusted_price = best_ask + price_adjustment
-                if best_ask % 1 == 0.5:
-                    adjusted_price = best_ask + price_adjustment + 0.5
-
-                # Count liquidity at or below our adjusted price
-                available_volume = 0
-                for price, volume in order_depth.sell_orders.items():
-                    if price <= adjusted_price:
-                        available_volume += abs(volume)
-
-                max_spreads_dj = available_volume // abs(dj_multiplier) if dj_multiplier != 0 else float('inf')
+        if 'DJEMBES' in order_depths:
+            _, available_volume = self._get_available_volume(order_depths['DJEMBES'], True, price_adjustment)
+            max_spreads_dj = available_volume // abs(dj_multiplier) if dj_multiplier != 0 else float('inf')
 
         # Take the minimum to ensure we have enough liquidity for all components
         max_spreads = min(max_spreads_pb1, max_spreads_pb2, max_spreads_dj, quantity)
@@ -453,41 +506,32 @@ class Trader:
         dj_quantity = dj_multiplier * max_spreads
 
         # Create orders with the adjusted prices we already calculated
-        if 'PICNIC_BASKET1' in state.order_depths and pb1_quantity != 0:
-            order_depth = state.order_depths['PICNIC_BASKET1']
-            if len(order_depth.buy_orders) > 0:
-                best_bid = max(order_depth.buy_orders.keys())
-                adjusted_price = best_bid - price_adjustment
-                if best_bid % 1 == 0.5:
-                    adjusted_price = best_bid - price_adjustment - 0.5
-                orders.append(Order('PICNIC_BASKET1', adjusted_price, pb1_quantity))
+        if 'PICNIC_BASKET1' in order_depths:
+            order = self._create_spread_order('PICNIC_BASKET1', order_depths['PICNIC_BASKET1'],
+                                             pb1_quantity, False, price_adjustment)
+            if order:
+                orders.append(order)
 
-        if 'PICNIC_BASKET2' in state.order_depths and pb2_quantity != 0:
-            order_depth = state.order_depths['PICNIC_BASKET2']
-            if len(order_depth.sell_orders) > 0:
-                best_ask = min(order_depth.sell_orders.keys())
-                adjusted_price = best_ask + price_adjustment
-                if best_ask % 1 == 0.5:
-                    adjusted_price = best_ask + price_adjustment + 0.5
-                orders.append(Order('PICNIC_BASKET2', adjusted_price, pb2_quantity))
+        if 'PICNIC_BASKET2' in order_depths:
+            order = self._create_spread_order('PICNIC_BASKET2', order_depths['PICNIC_BASKET2'],
+                                             pb2_quantity, True, price_adjustment)
+            if order:
+                orders.append(order)
 
-        if 'DJEMBES' in state.order_depths and dj_quantity != 0:
-            order_depth = state.order_depths['DJEMBES']
-            if len(order_depth.sell_orders) > 0:
-                best_ask = min(order_depth.sell_orders.keys())
-                adjusted_price = best_ask + price_adjustment
-                if best_ask % 1 == 0.5:
-                    adjusted_price = best_ask + price_adjustment + 0.5
-                orders.append(Order('DJEMBES', adjusted_price, dj_quantity))
+        if 'DJEMBES' in order_depths:
+            order = self._create_spread_order('DJEMBES', order_depths['DJEMBES'],
+                                            dj_quantity, True, price_adjustment)
+            if order:
+                orders.append(order)
 
         return orders
 
-    def sell_spread(self, state: TradingState, quantity: int, price_adjustment: int) -> List[Order]:
+    def sell_spread(self, order_depths: Dict[str, OrderDepth], quantity: int, price_adjustment: int) -> List[Order]:
         """
         Sell the spread: sell PB2+DJ, buy PB1
 
         Parameters:
-            state: Current trading state
+            order_depths: Dictionary of order depths for each product
             quantity: Requested quantity to trade
             price_adjustment: Price adjustment for orders
 
@@ -507,55 +551,19 @@ class Trader:
         max_spreads_dj = 0
 
         # For PB1 (buying), check sell orders at or below our adjusted price
-        if 'PICNIC_BASKET1' in state.order_depths:
-            order_depth = state.order_depths['PICNIC_BASKET1']
-            if len(order_depth.sell_orders) > 0:
-                best_ask = min(order_depth.sell_orders.keys())
-                adjusted_price = best_ask + price_adjustment
-                if best_ask % 1 == 0.5:
-                    adjusted_price = best_ask + price_adjustment + 0.5
-
-                # Count liquidity at or below our adjusted price
-                available_volume = 0
-                for price, volume in order_depth.sell_orders.items():
-                    if price <= adjusted_price:
-                        available_volume += abs(volume)
-
-                max_spreads_pb1 = available_volume // abs(pb1_multiplier) if pb1_multiplier != 0 else float('inf')
+        if 'PICNIC_BASKET1' in order_depths:
+            _, available_volume = self._get_available_volume(order_depths['PICNIC_BASKET1'], True, price_adjustment)
+            max_spreads_pb1 = available_volume // abs(pb1_multiplier) if pb1_multiplier != 0 else float('inf')
 
         # For PB2 (selling), check buy orders at or above our adjusted price
-        if 'PICNIC_BASKET2' in state.order_depths:
-            order_depth = state.order_depths['PICNIC_BASKET2']
-            if len(order_depth.buy_orders) > 0:
-                best_bid = max(order_depth.buy_orders.keys())
-                adjusted_price = best_bid - price_adjustment
-                if best_bid % 1 == 0.5:
-                    adjusted_price = best_bid - price_adjustment - 0.5
-
-                # Count liquidity at or above our adjusted price
-                available_volume = 0
-                for price, volume in order_depth.buy_orders.items():
-                    if price >= adjusted_price:
-                        available_volume += abs(volume)
-
-                max_spreads_pb2 = available_volume // abs(pb2_multiplier) if pb2_multiplier != 0 else float('inf')
+        if 'PICNIC_BASKET2' in order_depths:
+            _, available_volume = self._get_available_volume(order_depths['PICNIC_BASKET2'], False, price_adjustment)
+            max_spreads_pb2 = available_volume // abs(pb2_multiplier) if pb2_multiplier != 0 else float('inf')
 
         # For DJEMBES (selling), check buy orders at or above our adjusted price
-        if 'DJEMBES' in state.order_depths:
-            order_depth = state.order_depths['DJEMBES']
-            if len(order_depth.buy_orders) > 0:
-                best_bid = max(order_depth.buy_orders.keys())
-                adjusted_price = best_bid - price_adjustment
-                if best_bid % 1 == 0.5:
-                    adjusted_price = best_bid - price_adjustment - 0.5
-
-                # Count liquidity at or above our adjusted price
-                available_volume = 0
-                for price, volume in order_depth.buy_orders.items():
-                    if price >= adjusted_price:
-                        available_volume += abs(volume)
-
-                max_spreads_dj = available_volume // abs(dj_multiplier) if dj_multiplier != 0 else float('inf')
+        if 'DJEMBES' in order_depths:
+            _, available_volume = self._get_available_volume(order_depths['DJEMBES'], False, price_adjustment)
+            max_spreads_dj = available_volume // abs(dj_multiplier) if dj_multiplier != 0 else float('inf')
 
         # Take the minimum to ensure we have enough liquidity for all components
         max_spreads = min(max_spreads_pb1, max_spreads_pb2, max_spreads_dj, quantity)
@@ -570,31 +578,20 @@ class Trader:
         dj_quantity = dj_multiplier * max_spreads
 
         # Create orders with the adjusted prices we already calculated
-        if 'PICNIC_BASKET1' in state.order_depths and pb1_quantity != 0:
-            order_depth = state.order_depths['PICNIC_BASKET1']
-            if len(order_depth.sell_orders) > 0:
-                best_ask = min(order_depth.sell_orders.keys())
-                adjusted_price = best_ask + price_adjustment
-                if best_ask % 1 == 0.5:
-                    adjusted_price = best_ask + price_adjustment + 0.5
-                orders.append(Order('PICNIC_BASKET1', adjusted_price, pb1_quantity))
+        if 'PICNIC_BASKET1' in order_depths:
+            order = self._create_spread_order('PICNIC_BASKET1', order_depths['PICNIC_BASKET1'],
+                                             pb1_quantity, True, price_adjustment)
+            if order:
+                orders.append(order)
 
-        if 'PICNIC_BASKET2' in state.order_depths and pb2_quantity != 0:
-            order_depth = state.order_depths['PICNIC_BASKET2']
-            if len(order_depth.buy_orders) > 0:
-                best_bid = max(order_depth.buy_orders.keys())
-                adjusted_price = best_bid - price_adjustment
-                if best_bid % 1 == 0.5:
-                    adjusted_price = best_bid - price_adjustment - 0.5
-                orders.append(Order('PICNIC_BASKET2', adjusted_price, pb2_quantity))
+        if 'PICNIC_BASKET2' in order_depths:
+            order = self._create_spread_order('PICNIC_BASKET2', order_depths['PICNIC_BASKET2'],
+                                             pb2_quantity, False, price_adjustment)
+            if order:
+                orders.append(order)
 
-        if 'DJEMBES' in state.order_depths and dj_quantity != 0:
-            order_depth = state.order_depths['DJEMBES']
-            if len(order_depth.buy_orders) > 0:
-                best_bid = max(order_depth.buy_orders.keys())
-                adjusted_price = best_bid - price_adjustment
-                if best_bid % 1 == 0.5:
-                    adjusted_price = best_bid - price_adjustment - 0.5
-                orders.append(Order('DJEMBES', adjusted_price, dj_quantity))
-
-        return orders
+        if 'DJEMBES' in order_depths:
+            order = self._create_spread_order('DJEMBES', order_depths['DJEMBES'],
+                                            dj_quantity, False, price_adjustment)
+            if order:
+                orders.append(order)
