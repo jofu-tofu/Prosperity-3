@@ -1,0 +1,12 @@
+Backtesting C:\Users\fujos\Github\Prosperity-3\backtester\traders\custom_spread_trader.py on round 2 day -1
+CROISSANTS: 0
+DJEMBES: -172
+JAMS: 0
+KELP: 0
+PICNIC_BASKET1: 24,193
+PICNIC_BASKET2: 3,194
+RAINFOREST_RESIN: 0
+SQUID_INK: 0
+Total profit: 27,216
+
+Successfully saved backtest results to backtests\2025-04-12_11-30-47.log

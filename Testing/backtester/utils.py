@@ -55,11 +55,13 @@ def load_all_price_data(round):
     The data is expected to be in CSV files named 'prices_round_{round}_day_{day}.csv'.
     """
     all_data = pd.DataFrame()
-
-    for day in range(-2, 1):
+    count = 0 
+    for day in range(-2, 2):
+        
         try:
             data = load_price_data(round, day)
-            data['timestamp'] += np.power(10, 6) * (day+2)
+            count += 1
+            data['timestamp'] += np.power(10, 6) * (count-1)
             all_data = pd.concat([all_data, data])
         except FileNotFoundError:
             print(f"Data for Round {round}, Day {day} not found. Skipping.")

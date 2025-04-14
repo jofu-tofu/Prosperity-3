@@ -1,0 +1,5 @@
+entry_threshold,exit_threshold,entry_price_adjustment,exit_price_adjustment,2--1,2-0,total_profit
+5.5,0.5,1.0,1.0,15314,5892,21206
+5.5,0.75,1.0,1.0,15314,5892,21206
+5.5,0.5,1.0,0.0,10318,5892,16210
+5.5,0.75,1.0,0.0,10318,5892,16210
