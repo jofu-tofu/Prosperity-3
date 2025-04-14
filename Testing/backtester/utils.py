@@ -56,7 +56,7 @@ def load_all_price_data(round):
     """
     all_data = pd.DataFrame()
     count = 0 
-    for day in range(-2, 2):
+    for day in range(-2, 5):
         
         try:
             data = load_price_data(round, day)
@@ -66,7 +66,7 @@ def load_all_price_data(round):
         except FileNotFoundError:
             print(f"Data for Round {round}, Day {day} not found. Skipping.")
 
-    return all_data
+    return all_data.set_index('timestamp')
 
 def get_price_data(product, round):
     """

@@ -134,13 +134,11 @@ class Trader:
         Initialize the CMMA Difference Trader.
         """
         # Trading parameters
-        self.threshold = 0.65
-        self.lookback = 800  # Used as span for EWM
-        self.atr_lookback = 3.0*self.lookback/2.0  # Used as span for EWM of absolute differences
-        self.cmma_smooth_lookback = 100  # Used as span for smoothing the CMMA difference
+        self.threshold = 0.5
+        self.lookback = 200  # Used as span for EWM
+        self.atr_lookback = 5.0*self.lookback/4.0  # Used as span for EWM of absolute differences
         self.max_position = 30  # Maximum number of spread units to hold (not individual instruments)
         self.price_adjustment = 1
-        self.hard_threshold = 120
 
         # Products we'll be trading
         self.products = ['PICNIC_BASKET1', 'PICNIC_BASKET2', 'DJEMBES']
@@ -152,10 +150,6 @@ class Trader:
         self.ewm_means = {}
         self.ewm_atr = {}
         self.last_prices = {}
-
-        # CMMA difference smoothing variables
-        self.last_cmma_difference = 0
-        self.smoothed_cmma_difference = 0
 
         # These variables will be stored in trader_data and initialized at the start of each run
 
@@ -180,13 +174,12 @@ class Trader:
         dj_position = positions.get('DJEMBES', 0)
 
         return int(pb1_position/pb1_multiplier)
-
+    
     def _save_parameters_to_trader_data(self, trader_data):
         """Helper function to save all parameters to trader_data"""
         trader_data['threshold'] = self.threshold
         trader_data['lookback'] = self.lookback
         trader_data['atr_lookback'] = self.atr_lookback
-        trader_data['cmma_smooth_lookback'] = self.cmma_smooth_lookback
         trader_data['max_position'] = self.max_position
         trader_data['price_adjustment'] = self.price_adjustment
         trader_data['products'] = self.products
@@ -194,8 +187,6 @@ class Trader:
         trader_data['ewm_means'] = self.ewm_means
         trader_data['ewm_atr'] = self.ewm_atr
         trader_data['last_prices'] = self.last_prices
-        trader_data['last_cmma_difference'] = self.last_cmma_difference
-        trader_data['smoothed_cmma_difference'] = self.smoothed_cmma_difference
         return trader_data
 
     def update_ewm(self, product_key, current_log_price):
@@ -284,32 +275,27 @@ class Trader:
         if 'threshold' not in trader_data:
             trader_data['threshold'] = self.threshold
         else:
-            self.threshold = trader_data['threshold']
+            self.threshold = 0.5
 
         if 'lookback' not in trader_data:
             trader_data['lookback'] = self.lookback
         else:
-            self.lookback = trader_data['lookback']
+            self.lookback = 200  # Used as span for EWM
 
         if 'atr_lookback' not in trader_data:
             trader_data['atr_lookback'] = self.atr_lookback
         else:
-            self.atr_lookback = trader_data['atr_lookback']
-
-        if 'cmma_smooth_lookback' not in trader_data:
-            trader_data['cmma_smooth_lookback'] = self.cmma_smooth_lookback
-        else:
-            self.cmma_smooth_lookback = trader_data['cmma_smooth_lookback']
+            self.atr_lookback = 5.0*self.lookback/4.0  # Used as span for EWM of absolute differences
 
         if 'max_position' not in trader_data:
             trader_data['max_position'] = self.max_position
         else:
-            self.max_position = trader_data['max_position']
+            self.max_position = 30  # Maximum number of spread units to hold (not individual instruments)
 
         if 'price_adjustment' not in trader_data:
             trader_data['price_adjustment'] = self.price_adjustment
         else:
-            self.price_adjustment = trader_data['price_adjustment']
+            self.price_adjustment = 1
 
         # Products list
         if 'products' not in trader_data:
@@ -339,17 +325,6 @@ class Trader:
         else:
             self.last_prices = trader_data['last_prices']
 
-        # CMMA difference smoothing variables
-        if 'last_cmma_difference' not in trader_data:
-            trader_data['last_cmma_difference'] = self.last_cmma_difference
-        else:
-            self.last_cmma_difference = trader_data['last_cmma_difference']
-
-        if 'smoothed_cmma_difference' not in trader_data:
-            trader_data['smoothed_cmma_difference'] = self.smoothed_cmma_difference
-        else:
-            self.smoothed_cmma_difference = trader_data['smoothed_cmma_difference']
-
         # Get current mid prices for each product
         current_prices = {}
         for product in self.products:
@@ -377,21 +352,11 @@ class Trader:
         # Calculate CMMA for both log price series using EWM
         cmma_pb1 = self.calculate_cmma('pb1', log_pb1)
         cmma_pb2dj = self.calculate_cmma('pb2dj', log_pb2dj)
-
-        # Calculate raw CMMA difference
+        # Calculate CMMA difference
         def tanh(x):
             return np.tanh(x)
-        raw_cmma_difference = tanh(cmma_pb2dj - cmma_pb1)
-
-        # Apply EWM smoothing to the CMMA difference
-        alpha_smooth = 2.0 / (self.cmma_smooth_lookback + 1)
-        self.smoothed_cmma_difference = (1 - alpha_smooth) * self.smoothed_cmma_difference + alpha_smooth * raw_cmma_difference
-
-        # Store the raw CMMA difference for the next iteration
-        self.last_cmma_difference = raw_cmma_difference
-
-        logger.print(f"Raw CMMA Difference: {raw_cmma_difference}")
-        logger.print(f"Smoothed CMMA Difference: {self.smoothed_cmma_difference}")
+        cmma_difference = tanh(cmma_pb2dj - cmma_pb1)
+        logger.print(f"CMMA Difference: {cmma_difference}")
         logger.print(f"Current position: {self.current_position}")
 
         # Calculate the current spread position based on actual instrument positions
@@ -403,21 +368,13 @@ class Trader:
 
         # Only flip position when crossing opposite threshold
         # max_position represents the maximum number of spread units we want to hold
-        # Use the smoothed CMMA difference for trading decisions
-        if self.smoothed_cmma_difference > self.threshold:
+        if cmma_difference > self.threshold:
             target_position = -self.max_position  # Short max_position spread units
-        elif self.smoothed_cmma_difference < -self.threshold:
+        elif cmma_difference < -self.threshold:
             target_position = self.max_position   # Long max_position spread units
         else:
             target_position = self.current_position  # Maintain current spread position
 
-        current_spread = 1.5*current_prices['PICNIC_BASKET2'] - current_prices['PICNIC_BASKET1'] + current_prices['DJEMBES']
-        if current_spread > self.hard_threshold:
-            target_position = -self.max_position
-            logger.print("Hard threshold triggered, shorting max position")
-        elif current_spread < -self.hard_threshold:
-            target_position = self.max_position
-            logger.print("Hard threshold triggered, longing max position")
         logger.print(f"Target spread position: {target_position}")
 
         # Calculate position changes needed
