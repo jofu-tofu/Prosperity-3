@@ -67,7 +67,33 @@ def load_all_price_data(round):
             print(f"Data for Round {round}, Day {day} not found. Skipping.")
 
     return all_data.set_index('timestamp')
-
+def load_all_oberservations(round):
+    """
+    Load the data for a specific round and day.
+    The data is expected to be in CSV files named 'prices_round_{round}_day_{day}.csv'.
+    """
+    # Try different filename formats
+    all_data = pd.DataFrame()
+    # Try the main datapath first
+    for day in range(1, 6):
+        filename = f"Round {round}/observations_round_{round}_day_{day}.csv"
+        filepath = os.path.join(datapath, filename)
+        if os.path.exists(filepath):
+            print(f"Found data file at {filepath}")
+            data = pd.read_csv(filepath, sep=',')
+            data['timestamp'] += np.power(10, 6) * (day-1)
+            all_data = pd.concat([all_data, data])
+        else:
+            for alt_path in alternative_datapaths:
+                filepath = os.path.join(alt_path, filename)
+                if os.path.exists(filepath):
+                    print(f"Found data file at {filepath}")
+                    data = pd.read_csv(filepath, sep=',')
+                    data['timestamp'] += np.power(10, 6) * (day-1)
+                    all_data = pd.concat([all_data, data])
+                    break
+            
+    return all_data
 def get_price_data(product, round):
     """
     Load price data for a specific product and round.
